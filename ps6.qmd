@@ -93,36 +93,43 @@ waze_sample = pd.read_csv('waze_data_sample.csv')
 print(waze_sample.columns)
 ```
 
-    | Col1 | Col2 |
-    |-------------|
-    | city | Nominal |
-    | confidence | Quantitative |
-    | nThumpsUp | Quantitative |
-    | street | Nominal |
-    | uuid | Nominal |
-    | country | Nominal |
-    | type | Nominal |
-    | subtype | Nominal |
-    | roadType | Nominal |
-    | reliability | Ordinal |
-    | magvar | Quantitative |
-    | reportRating | Oridnal |
+```         
+| Col1 | Col2 |
+|-------------|
+| city | Nominal |
+| confidence | Quantitative |
+| nThumpsUp | Quantitative |
+| street | Nominal |
+| uuid | Nominal |
+| country | Nominal |
+| type | Nominal |
+| subtype | Nominal |
+| roadType | Nominal |
+| reliability | Ordinal |
+| magvar | Quantitative |
+| reportRating | Oridnal |
+```
 
 Double checked with ChatGPT
+
 2.  
 
 ```{python}
+# Read in data
 waze = pd.read_csv('waze_data.csv')
 
 ```
 
 ```{python}
+# create new dataframe that has the number of null and non-null values for each variable
 waze_nulls = pd.DataFrame({
     'Column Name': waze.columns,
     'Null Values': waze.isnull().sum(),
     'Non-Null Values': waze.notnull().sum(),
     'Total Values': len(waze)
 })
+
+# make data long to create a nominal column for the stacked bar chart
 waze_nulls_long = waze_nulls.melt(
     id_vars=['Column Name', 'Total Values'],
     value_vars=['Null Values', 'Non-Null Values'],
@@ -130,6 +137,7 @@ waze_nulls_long = waze_nulls.melt(
     value_name='Count'
 )
 
+# create chart
 alt.Chart(waze_nulls_long).mark_bar().encode(
   x='Column Name:N',
   y='Count:Q',
@@ -138,42 +146,185 @@ alt.Chart(waze_nulls_long).mark_bar().encode(
 ```
 
 ```{python}
+# print the columns that have null values
 variables_with_nulls = waze_nulls[waze_nulls['Null Values'] > 0]['Column Name']
 print("Variables with NULL values:", variables_with_nulls.tolist())
+
+# sort variables to put the variable with the most null values up top
 waze_nulls_max_values = waze_nulls['Null Values'].sort_values(ascending=False).reset_index()
 waze_nulls_max_values = waze_nulls_max_values.rename(columns={'index': 'Column Name'})
 
-print("Variable with the most NULL values:", waze_nulls_max_values['Column Name'].loc[0])
-```
-3.  
-
-```{python}
-
-```
-
-4.  
-
-5.  
-
-```{python}
-
-```
-
-2.  
-
-```{python}
-
+# print the variable name at the top of the sorted dataframe
+print("Variable with the highest share of NULL values:", waze_nulls_max_values['Column Name'].loc[0])
 ```
 
 3.  
 
 ```{python}
+# unique values in the 'type' column
+waze['type'].unique()
+
+# unique values in the 'subtype' column
+waze['subtype'].unique()
+
+# how many subtypes are missing for each unique type
+missing_subtype_counts = waze[waze['subtype'].isna()].groupby('type').size()
+print(missing_subtype_counts)
+
+# see how many of each subtype there are
+relevant_subtypes = waze.groupby('subtype').size().reset_index()
 
 ```
 
-4.  
+Even though some subtypes only appear a few times, I still think they should be included in the hierarchy. It makes more sense to include all the options available and let users decide if there are too few values to look at any charts.
+
+Hierarchy:
+
+-   ACCIDENT
+
+    -   Major
+
+    -   Minor
+
+-   HAZARD
+
+    -   On Road
+
+        -   Car Stopped
+        -   Construction
+        -   Emergency Vehicle
+        -   Ice
+        -   Object
+        -   Pot Hole
+        -   Traffic Light Fault
+        -   Lane Closed
+        -   Road Kill
+
+    -   On Shoulder
+
+        -   Animals
+        -   Car Stopped
+        -   Missing Sign
+        -   Weather
+            -   Flood
+            -   Fog
+            -   Heavy Snow
+            -   Hail
+
+-   JAM
+
+    -   Light Traffic
+    -   Moderate Traffic
+    -   Heavy Traffic
+    -   Stand-Still Traffic
+
+-   ROAD CLOSED
+
+    -   Event Construction
+    -   Hazard
 
 ```{python}
+# fill NAs with 'Unclassified'
+waze['subtype'] = waze['subtype'].fillna('Unclassified')
+```
+
+4.  
+```{python}
+# add type and subtype to cross walk
+crosswalk = waze[['type', 'subtype']].drop_duplicates()
+
+# update formatting for type
+crosswalk['updated_type'] = crosswalk['type'].str.capitalize()
+crosswalk.loc[crosswalk['type'] == 'ROAD_CLOSED', 'updated_type'] = 'Road Closed'
+
+# entered unique subtypes to ChatGPT and asked it to create a hierarchy map
+subtype_clean_mapping = {
+    'ACCIDENT_MAJOR': 'Major',
+    'ACCIDENT_MINOR': 'Minor',
+    'HAZARD_ON_ROAD': 'On Road',
+    'HAZARD_ON_ROAD_CAR_STOPPED': 'On Road',
+    'HAZARD_ON_ROAD_CONSTRUCTION': 'On Road',
+    'HAZARD_ON_ROAD_EMERGENCY_VEHICLE': 'On Road',
+    'HAZARD_ON_ROAD_ICE': 'On Road',
+    'HAZARD_ON_ROAD_OBJECT': 'On Road',
+    'HAZARD_ON_ROAD_POT_HOLE': 'On Road',
+    'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'On Road',
+    'HAZARD_ON_ROAD_LANE_CLOSED': 'On Road',
+    'HAZARD_ON_ROAD_ROAD_KILL': 'On Road',
+    'HAZARD_ON_SHOULDER': 'On Shoulder',
+    'HAZARD_ON_SHOULDER_CAR_STOPPED': 'On Shoulder',
+    'HAZARD_ON_SHOULDER_ANIMALS': 'On Shoulder',
+    'HAZARD_ON_SHOULDER_MISSING_SIGN': 'On Shoulder',
+    'HAZARD_WEATHER': 'Weather',
+    'HAZARD_WEATHER_FLOOD': 'Weather',
+    'HAZARD_WEATHER_FOG': 'Weather',
+    'HAZARD_WEATHER_HEAVY_SNOW': 'Weather',
+    'HAZARD_WEATHER_HAIL': 'Weather',
+    'JAM_LIGHT_TRAFFIC': 'Light Traffic',
+    'JAM_MODERATE_TRAFFIC': 'Moderate Traffic',
+    'JAM_HEAVY_TRAFFIC': 'Heavy Traffic',
+    'JAM_STAND_STILL_TRAFFIC': 'Stand-Still Traffic',
+    'ROAD_CLOSED_EVENT': 'Event',
+    'ROAD_CLOSED_CONSTRUCTION': 'Construction',
+    'ROAD_CLOSED_HAZARD': 'Hazard',
+}
+
+# update subtype column
+crosswalk['updated_subtype'] = waze['subtype'].replace(subtype_clean_mapping)
+
+# create subsubtype column with none, to be updated later if necessary
+crosswalk['updated_subsubtype'] = None
+
+# update subsubtype for the required rows
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD', 
+    'updated_subsubtype'] = 'General'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_CAR_STOPPED', 
+    'updated_subsubtype'] = 'Car Stopped'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_CONSTRUCTION', 
+    'updated_subsubtype'] = 'Construction'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_EMERGENCY_VEHICLE', 
+    'updated_subsubtype'] = 'Emergency Vehicle'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_ICE',
+    'updated_subsubtype'] = 'Ice'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_OBJECT', 
+    'updated_subsubtype'] = 'Object'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_POT_HOLE', 
+    'updated_subsubtype'] = 'Pot Hole'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT', 
+    'updated_subsubtype'] = 'Traffic Light Fault'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_LANE_CLOSED', 
+    'updated_subsubtype'] = 'Lane Closed'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_ROAD_ROAD_KILL', 
+    'updated_subsubtype'] = 'Road Kill'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_SHOULDER', 
+    'updated_subsubtype'] = 'General'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_SHOULDER_CAR_STOPPED', 
+    'updated_subsubtype'] = 'Car Stopped'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_SHOULDER_ANIMALS', 
+    'updated_subsubtype'] = 'Animals'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_ON_SHOULDER_MISSING_SIGN', 
+    'updated_subsubtype'] = 'Missing Sign'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_WEATHER',
+    'updated_subsubtype'] = 'General'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_WEATHER_FLOOD',
+    'updated_subsubtype'] = 'Flood'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_WEATHER_FOG',
+    'updated_subsubtype'] = 'Fog'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_WEATHER_HEAVY_SNOW',
+    'updated_subsubtype'] = 'Heavy Snow'
+crosswalk.loc[crosswalk['subtype'] == 'HAZARD_WEATHER_HAIL',
+    'updated_subsubtype'] = 'Hail'
+crosswalk['updated_subsubtype'] = crosswalk['updated_subsubtype'].fillna('Unclassified')
+
+# merge crosswalk and dataframe
+waze_merged = waze.merge(crosswalk, on=['type', 'subtype'], how='left')
+
+# find how many rows there are where type = Accident and subtype = Unclassified
+accident_unclassified_count = waze_merged[
+    (waze_merged['updated_type'] == 'Accident') & 
+    (waze_merged['updated_subtype'] == 'Unclassified')
+].shape[0]
+print(f"\nNumber of rows for Accident - Unclassified: {accident_unclassified_count}")
 
 ```
 
@@ -181,6 +332,9 @@ print("Variable with the most NULL values:", waze_nulls_max_values['Column Name'
 
 1.  
 
+```{python}
+
+```
 <!-- -->
 
 a.  

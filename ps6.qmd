@@ -93,22 +93,20 @@ waze_sample = pd.read_csv('waze_data_sample.csv')
 print(waze_sample.columns)
 ```
 
-```         
-| Col1 | Col2 |
-|-------------|
-| city | Nominal |
-| confidence | Quantitative |
-| nThumpsUp | Quantitative |
-| street | Nominal |
-| uuid | Nominal |
-| country | Nominal |
-| type | Nominal |
-| subtype | Nominal |
-| roadType | Nominal |
-| reliability | Ordinal |
-| magvar | Quantitative |
-| reportRating | Oridnal |
-```
+| Variable     | Data Type    |
+|--------------|--------------|
+| city         | Nominal      |
+| confidence   | Quantitative |
+| nThumpsUp    | Quantitative |
+| street       | Nominal      |
+| uuid         | Nominal      |
+| country      | Nominal      |
+| type         | Nominal      |
+| subtype      | Nominal      |
+| roadType     | Nominal      |
+| reliability  | Ordinal      |
+| magvar       | Quantitative |
+| reportRating | Ordonal      |
 
 Double checked with ChatGPT
 
@@ -151,7 +149,8 @@ variables_with_nulls = waze_nulls[waze_nulls['Null Values'] > 0]['Column Name']
 print("Variables with NULL values:", variables_with_nulls.tolist())
 
 # sort variables to put the variable with the most null values up top
-waze_nulls_max_values = waze_nulls['Null Values'].sort_values(ascending=False).reset_index()
+waze_nulls_max_values = waze_nulls['Null Values'
+    ].sort_values(ascending=False).reset_index()
 waze_nulls_max_values = waze_nulls_max_values.rename(columns={'index': 'Column Name'})
 
 # print the variable name at the top of the sorted dataframe
@@ -229,6 +228,7 @@ waze['subtype'] = waze['subtype'].fillna('Unclassified')
 ```
 
 4.  
+
 ```{python}
 # add type and subtype to cross walk
 crosswalk = waze[['type', 'subtype']].drop_duplicates()
@@ -332,33 +332,177 @@ print(f"\nNumber of rows for Accident - Unclassified: {accident_unclassified_cou
 
 1.  
 
-```{python}
-
-```
 <!-- -->
 
 a.  
 
 ```{python}
+import re
+# define regex code
+pattern = r"POINT\(([-+]?[0-9]*\.?[0-9]+) ([-+]?[0-9]*\.?[0-9]+)\)"
 
+# apply regex to geo
+waze_merged[['latitude', 'longitude']] = waze_merged['geo'].str.extract(pattern).astype(float)
 ```
+
+ChatGPT Prompt: how to write regex code to extract longitude and latitude from a wkt string in a column in a dataframe
+
+ChatGPT Response:
+
+To extract longitude and latitude from a Well-Known Text (WKT) string in a column of a Pandas DataFrame, we can use **regular expressions** along with the `pandas` library. Here's how to do it:
+
+### Step-by-Step Plan:
+
+1.  Import the necessary libraries (`pandas` and `re`).
+
+2.  Define a regex pattern to extract the latitude and longitude values from the WKT string.
+
+3.  Use `pandas.DataFrame.apply()` or `pandas.Series.str.extract()` to apply the regex extraction on the column containing WKT strings.
+
+4.  Store the extracted latitude and longitude values in separate DataFrame columns.
+
+------------------------------------------------------------------------
+
+### Here's the Code:
+
+```{python}
+
+import pandas as pd
+import re
+
+# Example DataFrame with WKT strings in a column
+data = {
+    "geo": [
+        "POINT (30.2672 -97.7431)",
+        "POINT (40.7128 -74.0060)",
+        "POINT (34.0522 -118.2437)"
+    ]
+}
+
+df = pd.DataFrame(data)
+
+# Define the regex pattern to extract latitude and longitude
+pattern = r"POINT \(([-+]?[0-9]*\.?[0-9]+) ([-+]?[0-9]*\.?[0-9]+)\)"
+
+# Extract latitude and longitude using .str.extract()
+df[['latitude', 'longitude']] = df['geo'].str.extract(pattern).astype(float)
+
+# Display the updated DataFrame
+print(df)
+```
+
+------------------------------------------------------------------------
+
+### Output:
+
+The resulting DataFrame will have two new columns for `latitude` and `longitude`:
+
+| geo                       | latitude | longitude |
+|---------------------------|----------|-----------|
+| POINT (30.2672 -97.7431)  | 30.2672  | -97.7431  |
+| POINT (40.7128 -74.0060)  | 40.7128  | -74.0060  |
+| POINT (34.0522 -118.2437) | 34.0522  | -118.2437 |
+
+------------------------------------------------------------------------
+
+### Explanation:
+
+1.  **Regex Pattern**:
+
+    -   `POINT \(`: Matches the literal text `POINT (`.
+
+    -   `([-+]?[0-9]*\.?[0-9]+)`: Matches a signed or unsigned floating-point number (latitude).
+
+    -   A space separates latitude and longitude.
+
+    -   `([-+]?[0-9]*\.?[0-9]+)`: Matches a signed or unsigned floating-point number (longitude).
+
+2.  **`str.extract()`**:
+
+    -   Extracts groups from the matched regex and creates separate columns for each group.
+
+3.  **`.astype(float)`**:
+
+    -   Converts the extracted strings into floating-point numbers.
+
+------------------------------------------------------------------------
+
+### Suggestions:
+
+**a.** Add error handling for invalid WKT strings in the DataFrame.\
+**b.** Use a unit test to validate the regex extraction for various WKT formats.
 
 b.  
 
 ```{python}
+# bin longitude
+waze_merged['binned_longitude'] = waze_merged['longitude'].round(2)
 
+# bin latitude
+waze_merged['binned_latitude'] = waze_merged['latitude'].round(2)
+
+# ChatGPT Question: how to combine two columns
+waze_merged['binned_coordinates'] = list(zip(waze_merged['binned_latitude'], waze_merged['binned_longitude']))
+
+# find greatest number of observations
+highest_observed_bin = waze_merged.groupby('binned_coordinates').size().reset_index(name='Count')
+
+highest_observed_bin = highest_observed_bin.sort_values('Count', ascending=False)
+print('The binned latitude-longitude combination') 
+print('that has the greatest number of observations')
+print('in the overall dataset is', highest_observed_bin['binned_coordinates'].loc[0])
 ```
 
 c.  
 
 ```{python}
+# create new dataframe based on the coordinates, type, and subtype
+top_alerts_map = waze_merged.groupby(['binned_coordinates', 'updated_type', 'updated_subtype']).size().reset_index(name='Count')
+
+# ChatGPT Questions: i have a dataframe with type, subtype, binned coordinates, and count of observations for each combination of the three, i want to create a new dataset that subsets the top 10 highest numbers in count for each combination for type and subtype
+
+
+# group by each type and subtype, sort by top 10 counts
+top_10_alerts = top_alerts_map.sort_values('Count', ascending=False).groupby(['updated_type', 'updated_subtype'], as_index=False).head(10)
+
+# sort by type and subtype
+top_10_alerts = top_10_alerts.sort_values(by=['updated_type', 'updated_subtype'], ascending=[True, True])
+
+# save all the type and subtype top 10s
+folder_path = 'top_alerts_map'
+os.makedirs(folder_path, exist_ok=True)
+file_path = os.path.join(folder_path, 'top_10_alerts.csv')
+top_10_alerts.to_csv(file_path, index=False)
+
+# choose one type and subtype
+top_10_jam = top_10_alerts[top_10_alerts['updated_subtype']=='Heavy Traffic']
+```
+
+```{python}
+folder_path = 'top_alerts_map'
+os.makedirs(folder_path, exist_ok=True)
+file_path = os.path.join(folder_path, 'top_alerts_map.csv')
+top_10_jam.to_csv(file_path, index=False)
+```
+
+Each row represents a unique combination of type, subtype, and binned_coordinates. I then paired this down to just be one type and subtype (Jam, Heavy Traffic). There are 10 rows in this dataframe because it is the top 10 most observed coordinates for Heavy Traffic. There were 155 rows when each combination of type and subtype had at most 10 coordinates.
+
+2.  
+
+```{python}
+top_10_jam['binned_coordinates'] = top_10_jam['binned_coordinates'].astype(str)
+top_10_jam[['longitude', 'latitude']] = top_10_jam['binned_coordinates'].str.strip('()').str.split(', ', expand=True)
 
 ```
 
-d.  
-
 ```{python}
+heavy_traffic_chart = alt.Chart(top_10_jam, title='Top 10 Locations for Heavy Traffic Jams').mark_circle().encode(
+    alt.X('longitude'),
+    alt.Y('latitude'),
+    alt.Size('Count:Q', scale=alt.Scale(range=[1, 100]), title='Number of Observations')
+)
 
+heavy_traffic_chart
 ```
 
 3.  
@@ -368,27 +512,66 @@ d.
 a.  
 
 ```{python}
+import requests
+
+url = 'https://data.cityofchicago.org/api/geospatial/bbvz-uum9?method=export&format=GeoJSON'
+geo_data = requests.get(url)
 
 ```
 
 b.  
 
 ```{python}
-# MODIFY ACCORDINGLY
-#file_path = "./top_alerts_map/chicago-boundaries.geojson"
-#----
+file_path = "./top_alerts_map/chicago-boundaries.geojson"
 
-#with open(file_path) as f:
-    #chicago_geojson = json.load(f)
+with open(file_path) as f:
+    chicago_geojson = json.load(f)
 
-#geo_data = alt.Data(values=chicago_geojson["features"])
+geo_data = alt.Data(values=chicago_geojson["features"])
 
+print("Top-level keys in GeoJSON:", chicago_geojson.keys())
+
+# Number of features
+print("Number of features:", len(chicago_geojson['features']))
+print("First feature:")
+print(json.dumps(chicago_geojson['features'][0], indent=2))
 ```
 
 4.  
 
 ```{python}
+map_chart = alt.Chart(geo_data).mark_geoshape(
+    fill='None',  # Change to "None" or transparent for layering
+    stroke='lightgray'
+).encode(
+    tooltip=[alt.Tooltip('properties.neighborhood:N', title='Neighborhood')]  # Adjust as per GeoJSON properties
+).properties(
+    width=400,
+    height=400
+).project(
+    type='identity',  # Assume coordinates are in WGS84
+    reflectY=True     # Adjust Y-axis to match standard map orientation
+)
+scatter_chart = alt.Chart(top_10_jam, title='Top 10 Locations for Heavy Traffic Jams').mark_circle().encode(
+    longitude='longitude:Q',
+    latitude='latitude:Q', 
+    size=alt.Size(
+        'Count:Q', 
+        title='Number of Observations', 
+        scale=alt.Scale(type='pow', exponent=2, range=[1, 200]))
+)
 
+
+combined_chart = (map_chart + scatter_chart).configure_view(
+    stroke=None  # Remove the border of the map chart
+).properties(
+    title="Chicago Neighborhood Map with Heavy Traffic Jam Observations"
+).configure_mark(
+    opacity=0.7,
+    color='darkblue'
+)
+
+combined_chart
 ```
 
 5.  
@@ -398,28 +581,40 @@ b.
 a.  
 
 ```{python}
-
+top_10_alerts["type_subtype"] = top_10_alerts["updated_type"] + " - " + top_10_alerts["updated_subtype"]
+print(top_10_alerts['type_subtype'].nunique())
 ```
 
-b.  
+![app.py code for the drop-down menu in app #1](images/Screenshot%202024-11-23%20at%202.20.26%20PM.png)
+
+Enter this into terminal to run shiny app: shiny run top_alerts_map/app.py b.
 
 ```{python}
-
+top_10_alerts['binned_coordinates'] = top_10_alerts['binned_coordinates'].astype(str)
+top_10_alerts[['longitude', 'latitude']] = top_10_alerts['binned_coordinates'].str.strip('()').str.split(', ', expand=True)
+top_10_alerts[['longitude', 'latitude']] = top_10_alerts[['longitude', 'latitude']].astype(float)
+# save all the type and subtype top 10s
+folder_path = 'top_alerts_map'
+os.makedirs(folder_path, exist_ok=True)
+file_path = os.path.join(folder_path, 'top_10_alerts.csv')
+top_10_alerts.to_csv(file_path, index=False)
 ```
+
+![Jam-Heavy Traffic Plot from shiny app #1](images/visualization%20(2).png)
 
 c.  
 
-```{python}
+![](images/Road Closed-Event Alerts.png){width="400" height="472"}
 
-```
+The largest dot and first row in the DataFrame indicate where the most road-closed due to events alerts happen.
 
-d.  
+d.  Where is weather most likely to cause a driving hazard in Chicago?
 
-```{python}
+    ![](images/Weather Hazard Alerts.png){width="504"}
 
-```
+    Weather is most likely to cause a driving hazard in South Chicago.
 
-e.  
+e.  Providing the most common road type for each binned coordinates might help identify more details about the accidents rather than just where they were located.
 
 # App #2: Top Location by Alert Type and Hour Dashboard (20 points) {.unnumbered}
 

@@ -45,9 +45,6 @@ We use (`*`) to indicate a problem that we think might be time consuming.
 *IMPORTANT: For the App portion of the PS, in case you can not arrive to the expected functional dashboard we will need to take a look at your `app.py` file. You can use the following code chunk template to "import" and print the content of that file. Please, don't forget to also tag the corresponding code chunk as part of your submission!*
 
 ```{python}
-#| echo: true
-#| eval: false
-
 def print_file_contents(file_path):
     """Print contents of a file."""
     try:
@@ -66,6 +63,8 @@ def print_file_contents(file_path):
         print("```")
 
 print_file_contents("./top_alerts_map_byhour/app.py") # Change accordingly
+print_file_contents("./top_alerts_map/app.py")
+print_file_contents("./top_alerts_map_byhour_sliderrange/app.py")
 ```
 
 ```{python}
@@ -77,9 +76,13 @@ import altair as alt
 import pandas as pd
 from datetime import date
 import numpy as np
+import os
+import warnings
 alt.data_transformers.disable_max_rows() 
 
 import json
+warnings.filterwarnings('ignore')
+
 ```
 
 # Background {.unnumbered}
@@ -325,7 +328,16 @@ accident_unclassified_count = waze_merged[
     (waze_merged['updated_subtype'] == 'Unclassified')
 ].shape[0]
 print(f"\nNumber of rows for Accident - Unclassified: {accident_unclassified_count}")
+```
 
+```{python}
+check_type = waze_merged['type'].isin(crosswalk['type']).all()
+check_subtype = waze_merged['subtype'].isin(crosswalk['subtype']).all()
+
+if check_type and check_subtype:
+    print("The crosswalk and merged dataset have consistent values in 'type' and 'subtype'.")
+else:
+    print("There is a mismatch between the crosswalk and merged dataset in 'type' or 'subtype'.")
 ```
 
 # App #1: Top Location by Alert Type Dashboard (30 points) {.unnumbered}
@@ -503,7 +515,10 @@ heavy_traffic_chart = alt.Chart(top_10_jam, title='Top 10 Locations for Heavy Tr
 )
 
 heavy_traffic_chart
+
 ```
+
+![](heavy_traffic_chart.png)
 
 3.  
 
@@ -533,8 +548,7 @@ print("Top-level keys in GeoJSON:", chicago_geojson.keys())
 
 # Number of features
 print("Number of features:", len(chicago_geojson['features']))
-print("First feature:")
-print(json.dumps(chicago_geojson['features'][0], indent=2))
+
 ```
 
 4.  
@@ -585,9 +599,13 @@ top_10_alerts["type_subtype"] = top_10_alerts["updated_type"] + " - " + top_10_a
 print(top_10_alerts['type_subtype'].nunique())
 ```
 
-![app.py code for the drop-down menu in app #1](images/Screenshot%202024-11-23%20at%202.20.26%20PM.png)
+![](images/Python%20PS6%201.5.a.png){width="472"}
 
-Enter this into terminal to run shiny app: shiny run top_alerts_map/app.py b.
+app.py code for the drop-down menu in app #1
+
+Enter this into terminal to run shiny app: shiny run top_alerts_map/app.py
+
+b\.
 
 ```{python}
 top_10_alerts['binned_coordinates'] = top_10_alerts['binned_coordinates'].astype(str)
@@ -604,13 +622,13 @@ top_10_alerts.to_csv(file_path, index=False)
 
 c.  
 
-![](images/Road Closed-Event Alerts.png){width="400" height="472"}
+![](images/Road%20Closed-Event%20Alerts.png){width="400" height="472"}
 
 The largest dot and first row in the DataFrame indicate where the most road-closed due to events alerts happen.
 
 d.  Where is weather most likely to cause a driving hazard in Chicago?
 
-    ![](images/Weather Hazard Alerts.png){width="504"}
+    ![](images/Weather%20Hazard%20Alerts.png){width="504"}
 
     Weather is most likely to cause a driving hazard in South Chicago.
 
@@ -622,29 +640,165 @@ e.  Providing the most common road type for each binned coordinates might help i
 
 <!-- -->
 
-a.  
+a.  It would not be a good idea to collapse by this column because each row is a unique value, so there is nothing to collapse.
 
 b.  
 
 ```{python}
+# convert ts to datetime
+waze_merged['ts'] = pd.to_datetime(waze_merged['ts'])
 
+# filter out hour
+waze_merged['hour'] = waze_merged['ts'].dt.hour
+
+# collapse data by type, subtype, binned_coordinates, and hour
+alerts_byhour = waze_merged.groupby(['binned_coordinates', 'updated_type', 'updated_subtype', 'hour']).size().reset_index(name='Count')
+
+# count for each type, subtype, and hour combo
+alerts_by_hour = alerts_byhour.sort_values('Count', ascending=False).groupby(['updated_type', 'updated_subtype', 'hour'], as_index=False).head(10)
+
+# sort values
+alerts_by_hour = alerts_by_hour.sort_values(by=['updated_type', 'updated_subtype', 'hour'], ascending=[True, True, True])
+
+# create type-subtype column
+alerts_by_hour["type_subtype"] = alerts_by_hour["updated_type"] + " - " + alerts_by_hour["updated_subtype"]
+
+# create longitude and latitude columns
+alerts_by_hour['binned_coordinates'] = alerts_by_hour['binned_coordinates'].astype(str)
+alerts_by_hour[['longitude', 'latitude']] = alerts_by_hour['binned_coordinates'].str.strip('()').str.split(', ', expand=True)
+
+# save hour grouped dataframe
+folder_path = 'top_alerts_map_byhour'
+os.makedirs(folder_path, exist_ok=True)
+file_path = os.path.join(folder_path, 'top_alerts_map_byhour.csv')
+alerts_by_hour.to_csv(file_path, index=False)
 ```
 
 c.  
 
 ```{python}
+# filter for heavy traffic jam
+top_10_jam_byhour = alerts_by_hour[alerts_by_hour['type_subtype']=='Jam - Heavy Traffic']
 
+# filter for 9 am
+top_10_jam_9 = top_10_jam_byhour[top_10_jam_byhour['hour']==9]
+
+# filter for 12 pm
+top_10_jam_12 = top_10_jam_byhour[top_10_jam_byhour['hour']==12]
+
+# filter for 5 pm
+top_10_jam_17 = top_10_jam_byhour[top_10_jam_byhour['hour']==17]
+```
+
+### 9 A.M. Heavy Traffic Jam Chart
+
+```{python}
+
+scatter_9_chart = alt.Chart(top_10_jam_9).mark_circle().encode(
+    longitude='longitude:Q',
+    latitude='latitude:Q', 
+    size=alt.Size(
+        'Count:Q', 
+        title='Number of Observations', 
+        scale=alt.Scale(type='pow', exponent=2, range=[1, 200]))
+)
+
+
+combined_9_chart = (map_chart + scatter_9_chart).configure_view(
+    stroke=None  # Remove the border of the map chart
+).properties(
+    title='Top 10 Locations for Heavy Traffic Jam Observations at 9 A.M.'
+).configure_mark(
+    opacity=0.7,
+    color='darkblue'
+)
+
+combined_9_chart
+```
+
+### 12 P.M. Heavy Traffic Jam Chart
+
+```{python}
+
+scatter_12_chart = alt.Chart(top_10_jam_12).mark_circle().encode(
+    longitude='longitude:Q',
+    latitude='latitude:Q', 
+    size=alt.Size(
+        'Count:Q', 
+        title='Number of Observations', 
+        scale=alt.Scale(type='pow', exponent=2, range=[1, 200]))
+)
+
+
+combined_12_chart = (map_chart + scatter_12_chart).configure_view(
+    stroke=None  # Remove the border of the map chart
+).properties(
+    title='Top 10 Locations for Heavy Traffic Jam Observations at 12 P.M.'
+).configure_mark(
+    opacity=0.7,
+    color='darkblue'
+)
+
+combined_12_chart
+```
+
+### 5 P.M. Heavy Traffic Jam Chart
+
+```{python}
+
+scatter_17_chart = alt.Chart(top_10_jam_17).mark_circle().encode(
+    longitude='longitude:Q',
+    latitude='latitude:Q', 
+    size=alt.Size(
+        'Count:Q', 
+        title='Number of Observations', 
+        scale=alt.Scale(type='pow', exponent=2, range=[1, 200]))
+)
+
+
+combined_17_chart = (map_chart + scatter_17_chart).configure_view(
+    stroke=None  # Remove the border of the map chart
+).properties(
+    title='Top 10 Locations for Heavy Traffic Jam Observations at 5 P.M.'
+).configure_mark(
+    opacity=0.7,
+    color='darkblue'
+)
+
+combined_17_chart
 ```
 
 2.  
 
+Enter this into terminal to run shiny app: shiny run top_alerts_map_byhour/app.py
+
 <!-- -->
 
-a.  
+b.  a\. ![](images/Python%20ps6%202.2.a.png)
 
-b.  
+<!-- -->
 
-c.  
+b.  Heavy Traffic Jam 9 A.M.
+
+    ![](images/heavy%20traffic%20jam%209%20am.png){width="355"}
+
+    Heavy Traffic Jam 12 P.M.
+
+    ![](images/Heavy%20Traffic%20Jam%2012%20PM-2.png){width="352"}
+
+    Heavy Traffic Jam 5 P.M.
+
+    ![](images/Heavy%20Traffic%20Jam%205%20PM.png){width="368"}
+
+c.  Based on the limited reports, there appears to be no road construction during the morning hours and more reports at night
+
+    Road Construction at 9 A.M.
+
+    ![](images/Road%20Construction%209%20A.M..png){width="372"}
+
+    Road Construction 9 P.M.
+
+    ![](images/Road%20Construction%209%20P.M..png){width="440"}
 
 # App #3: Top Location by Alert Type and Hour Dashboard (20 points) {.unnumbered}
 
@@ -652,21 +806,52 @@ c.
 
 <!-- -->
 
-a.  
+a.  I think it makes the most sense to sum the Count column based on the hours chosen rather than collapsing by a range of hours. Since the user will pick the range of hours, it does not make sense for the dataframe to be collapsed by a set range of hours.
 
 b.  
 
 ```{python}
+# subset heavy traffic jam data to between 6 ad 9 am
+top_10_jam_6_9 = top_10_jam_byhour[(top_10_jam_byhour['hour']>=6) & (top_10_jam_byhour['hour']<= 9)]
 
+# add all observations for each coordinate and type-subtype
+top_10_jam_6_9_range = top_10_jam_6_9.groupby(['type_subtype', 'longitude', 'latitude'], as_index=False)['Count'].sum()
+
+top_10_jam_6_9_range = top_10_jam_6_9_range.nlargest(10, 'Count')
+```
+
+```{python}
+scatter_6_9_chart = alt.Chart(top_10_jam_6_9_range).mark_circle().encode(
+    longitude='longitude:Q',
+    latitude='latitude:Q', 
+    size=alt.Size(
+        'Count:Q', 
+        title='Number of Observations', 
+        scale=alt.Scale(type='pow', exponent=2, range=[1, 200]))
+)
+
+
+combined_6_9_chart = (map_chart + scatter_6_9_chart).configure_view(
+    stroke=None  # Remove the border of the map chart
+).properties(
+    title='Top 10 Locations for Heavy Traffic Jam Observations from 6-9 A.M.'
+).configure_mark(
+    opacity=0.7,
+    color='darkblue'
+)
+
+combined_6_9_chart
 ```
 
 2.  
 
-<!-- -->
+Enter this into terminal to run shiny app: shiny run top_alerts_map_byhour_sliderrange/app.py <!-- -->
 
-a.  
+a.  I chose not to include all the type-subtype choices in my screenshot, but they are all still there. I wanted to only put in one screenshot, and I wanted it to include the most new and relevant code.
 
-b.  
+    ![](images/Python%20PS6%203.2.a-2.png){width="490"}
+
+b.  ![](images/Heavy%20Traffic%20Jam%206-9%20A.M..png){width="359"}
 
 <!-- -->
 
@@ -674,10 +859,14 @@ b.
 
 <!-- -->
 
-a.  
+a.  The possible values of the switch are True or False. True means that you can choose from a single hour, and False means that you choose a range of hours.
 
-b.  
+    ![](images/app%20with%20switch.png){width="367"}
 
-c.  
+b.  ![](images/toggle%20off.png){width="311"}![](images/toggle%20on.png){width="303"}
 
-d.
+c.  ![](images/heavy%20traffic%20jam%20toggle%20on.png){width="469"}
+
+d.  ![](images/heavy%20traffic%20jam%20toggle%20off.png){width="365"}
+
+e.  I would create a new column called time_period that labels hours 0-11 as Morning and 12-23 as Afternoon. I would then collapse the data by type-subtype, location, and the top 10 morning locations and top 10 afternoon locations. I would make the chart mark_point() and add alt.Color based on time_period.

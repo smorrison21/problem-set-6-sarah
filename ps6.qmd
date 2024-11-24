@@ -144,7 +144,10 @@ alt.Chart(waze_nulls_long).mark_bar().encode(
   y='Count:Q',
   color='Null/Non-Null:N'
 )
+
 ```
+
+![](images/null%20chart.png){width="349"}
 
 ```{python}
 # print the columns that have null values
@@ -518,7 +521,7 @@ heavy_traffic_chart
 
 ```
 
-![](heavy_traffic_chart.png)
+![](images/heavy_traffic_chart.png)
 
 3.  
 
@@ -587,6 +590,8 @@ combined_chart = (map_chart + scatter_chart).configure_view(
 
 combined_chart
 ```
+
+![](images/ps6%202.4.png){width="297"}
 
 5.  
 
@@ -716,6 +721,8 @@ combined_9_chart = (map_chart + scatter_9_chart).configure_view(
 combined_9_chart
 ```
 
+### ![](images/ps6%202.1.c.png)
+
 ### 12 P.M. Heavy Traffic Jam Chart
 
 ```{python}
@@ -742,6 +749,8 @@ combined_12_chart = (map_chart + scatter_12_chart).configure_view(
 combined_12_chart
 ```
 
+![](images/combined_12_chart.png){width="363"}
+
 ### 5 P.M. Heavy Traffic Jam Chart
 
 ```{python}
@@ -767,6 +776,8 @@ combined_17_chart = (map_chart + scatter_17_chart).configure_view(
 
 combined_17_chart
 ```
+
+![](images/combined_17_chart.png){width="374"}
 
 2.  
 
@@ -842,6 +853,8 @@ combined_6_9_chart = (map_chart + scatter_6_9_chart).configure_view(
 
 combined_6_9_chart
 ```
+
+![](images/combined_6_9_chart.png){width="312"}
 
 2.  
 
